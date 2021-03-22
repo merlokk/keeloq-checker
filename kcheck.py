@@ -24,12 +24,19 @@ def version():
 @kcheck_cli.command()
 @click.argument("kmessage")
 @click.argument("key")
-def decode(kmessage, key):
+@click.option("-r", "--reverse", is_flag=True, help="check message in the reverse order")
+def decode(kmessage, key, reverse):
     kmessage = kmessage.replace(" ", "").replace("\t", "")
     msglen = len(kmessage)
     if msglen != 4 * 2 and msglen != 8 * 2 and msglen != 8 * 2 + 1:
         print("invalid message length " + str(msglen))
         return
+
+    if reverse:
+        km = int(kmessage, base=16)
+        kmi = int('{:08b}'.format(km)[::-1], 2)
+        print("reversed = " + hex(kmi))
+        kmessage = hex(kmi)[2:]
 
     intStaticPart = 0
     if msglen > 4 * 2:
