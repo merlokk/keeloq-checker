@@ -34,6 +34,35 @@ def diversify_key(man_code: int, serial: int = 0, simple: bool = True) -> int64:
     return (keyH << 32) + keyL
 
 
+def keeloq_check(intStaticPart, msg, verbose=False):
+    stSerial = intStaticPart & 0x0fffffff
+    stKey = intStaticPart >> 28 & 0x0f
+    dKey = msg >> 28 & 0x0f
+    res = (stKey == dKey)
+    if res:
+        if verbose:
+            print("Buttons OK [" + hex(stKey) + "]")
+    else:
+        if verbose:
+            print("Buttons compare error: " + hex(stKey) + "!=" + hex(dKey))
+    stSerialDisc = stSerial & 0x3ff
+    dDisc = msg >> 16 & 0x3ff
+    if stSerialDisc == dDisc:
+        if verbose:
+            print("Serial OK [" + hex(stSerialDisc) + "]")
+        return res
+    else:
+        if dDisc == 0:
+            if verbose:
+                print("decoded DISC==0. key candidate.")
+            return res
+        else:
+            if verbose:
+                print("Serial an DISC compare error: " + hex(
+                    stSerialDisc) + "!=" + hex(dDisc))
+            return False
+
+
 @kcheck_cli.command()
 def version():
     """Version of keeloq checker."""
@@ -71,28 +100,17 @@ def decode(kmessage, key, reverse, simple):
     print("-----")
 
     msg = decrypt(intMsg, divKey)
-    print("msg=" + hex(msg))
+    print("decrypted msg=" + hex(msg))
 
     print("counter: " + hex(msg & 0xffff))
     print("OVR: " + hex(msg >> 26 & 0x3))
     if intStaticPart != 0:
-        stKey = intStaticPart >> 28 & 0x0f
-        dKey = msg >> 28 & 0x0f
-        if stKey == dKey:
-            print("Buttons OK [" + hex(stKey) + "]")
+        if keeloq_check(intStaticPart, msg, True):
+            print("[OK]")
         else:
-            print("Buttons compare error: " + hex(stKey) + "!=" + hex(dKey))
-
-        stSerialDisc = stSerial & 0x3ff
-        dDisc = msg >> 16 & 0x3ff
-        if stSerialDisc == dDisc:
-            print("Serial OK [" + hex(stSerialDisc) + "]")
-        else:
-            if dDisc == 0:
-                print("decoded DISC==0. key candidate.")
-            else:
-                print("Serial an DISC compare error: " + hex(stSerialDisc) + "!=" + hex(dDisc))
-
+            print("[Fail]")
+    else:
+        print("[Not checked]")
 
 
 if __name__ == '__main__':
