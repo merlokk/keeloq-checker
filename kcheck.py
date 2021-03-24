@@ -88,7 +88,10 @@ def decode(kmessage, key, reverse, simple):
         if stSerialDisc == dDisc:
             print("Serial OK [" + hex(stSerialDisc) + "]")
         else:
-            print("Serial an DISC compare error: " + hex(stSerialDisc) + "!=" + hex(dDisc))
+            if dDisc == 0:
+                print("decoded DISC==0. key candidate.")
+            else:
+                print("Serial an DISC compare error: " + hex(stSerialDisc) + "!=" + hex(dDisc))
 
 
 
