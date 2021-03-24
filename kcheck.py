@@ -2,6 +2,8 @@
 
 import pathlib
 import click
+from numpy import int64
+
 from leekoq import decrypt
 
 @click.group()
@@ -12,8 +14,25 @@ def kcheck_cli():
 __version__ = open(pathlib.Path(__file__).parent / "VERSION").read().strip()
 
 
-def diversify_key(key) -> int:
-    return key
+def hex_bit_reverse(data: str) -> str:
+    bdata = int('{:08b}'.format(int(data, base=16))[::-1], 2)
+    return hex(bdata)[2:]
+
+
+def diversify_key(man_code: int, serial: int = 0, simple: bool = True) -> int64:
+    if simple:
+        return man_code
+
+    srcH = 0x60000000 + (serial & 0x0fffffff)
+    srcL = 0x20000000 + (serial & 0x0fffffff)
+
+    keyH: int64 = decrypt(srcH, man_code)
+    keyL: int64 = decrypt(srcL, man_code)
+
+    print(hex(keyH), hex(keyL))
+
+    return (keyH << 32) + keyL
+
 
 @kcheck_cli.command()
 def version():
@@ -25,7 +44,8 @@ def version():
 @click.argument("kmessage")
 @click.argument("key")
 @click.option("-r", "--reverse", is_flag=True, help="check message in the reverse order")
-def decode(kmessage, key, reverse):
+@click.option("-s", "--simple", is_flag=True, help="use simple learning. manufacturer code is remote's code")
+def decode(kmessage, key, reverse, simple):
     kmessage = kmessage.replace(" ", "").replace("\t", "")
     msglen = len(kmessage)
     if msglen != 4 * 2 and msglen != 8 * 2 and msglen != 8 * 2 + 1:
@@ -33,10 +53,8 @@ def decode(kmessage, key, reverse):
         return
 
     if reverse:
-        km = int(kmessage, base=16)
-        kmi = int('{:08b}'.format(km)[::-1], 2)
-        print("reversed = " + hex(kmi))
-        kmessage = hex(kmi)[2:]
+        kmessage = hex_bit_reverse(kmessage)
+        print("reversed = " + kmessage)
 
     intStaticPart = 0
     if msglen > 4 * 2:
@@ -45,8 +63,10 @@ def decode(kmessage, key, reverse):
 
     intKey = int(key, base=16)
     print("key=" + hex(intKey) + " static=" + hex(intStaticPart) + " msg=" + hex(intMsg))
+    stSerial = intStaticPart & 0x0fffffff    # 28 bit
+    print("serial number: " + hex(stSerial))
 
-    divKey = diversify_key(intKey)
+    divKey = diversify_key(intKey, stSerial, simple)
     print("div key=" + hex(divKey))
     print("-----")
 
@@ -63,8 +83,6 @@ def decode(kmessage, key, reverse):
         else:
             print("Buttons compare error: " + hex(stKey) + "!=" + hex(dKey))
 
-        stSerial = intStaticPart & 0xffffff
-        print("serial number: " + hex(stSerial))
         stSerialDisc = stSerial & 0x3ff
         dDisc = msg >> 16 & 0x3ff
         if stSerialDisc == dDisc:
